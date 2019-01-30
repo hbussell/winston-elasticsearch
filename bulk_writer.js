@@ -120,8 +120,18 @@ BulkWriter.prototype.append = function append(index, type, doc, callback) {
     // @todo: i guess we can use callback to notify caller
     return;
   }
-
   console.log("Pushing log message ....");
+  await this.client.index({
+    index,
+    type: '_doc',
+    body: {
+      ...doc
+    }
+  })
+
+  return;
+
+
   this.bulk.push({
     index,
     type,
