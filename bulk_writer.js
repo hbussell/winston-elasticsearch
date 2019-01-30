@@ -121,23 +121,17 @@ BulkWriter.prototype.append = function append(index, type, doc, callback) {
     return;
   }
   console.log("Pushing log message ....");
-  await this.client.index({
-    index,
-    type: '_doc',
-    body: {
-      ...doc
-    }
-  })
-
-  return;
-
-
-  this.bulk.push({
-    index,
-    type,
-    doc,
-    callback
-  });
+  this.client
+    .index({
+      index,
+      type: "_doc",
+      body: {
+        ...doc
+      }
+    })
+    .then(() => {
+      callback();
+    });
 };
 
 BulkWriter.prototype.checkEsConnection = function checkEsConnection() {
