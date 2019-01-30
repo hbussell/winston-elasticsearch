@@ -112,7 +112,7 @@ BulkWriter.prototype.flush = function flush() {
 };
 
 BulkWriter.prototype.append = function append(index, type, doc, callback) {
-  if (
+  /*if (
     this.options.bufferLimit &&
     this.bulk.length >= this.options.bufferLimit
   ) {
@@ -120,18 +120,24 @@ BulkWriter.prototype.append = function append(index, type, doc, callback) {
     // @todo: i guess we can use callback to notify caller
     return;
   }
+  */
   console.log("Pushing log message ....");
   this.client
     .index({
       index,
-      type: "_doc",
+      type,
       body: {
         ...doc
       }
     })
     .then(() => {
+      console.log("Completed sending log to Elastic", doc);
       callback();
+    })
+    .finally(() => {
+      console.log("final complete log append");
     });
+  console.log("   ");
 };
 
 BulkWriter.prototype.checkEsConnection = function checkEsConnection() {
