@@ -1,8 +1,8 @@
-const fs = require('fs');
-const path = require('path');
-const Promise = require('promise');
-const debug = require('debug')('winston:elasticsearch');
-const retry = require('retry');
+const fs = require("fs");
+const path = require("path");
+const Promise = require("promise");
+const debug = require("debug")("winston:elasticsearch");
+const retry = require("retry");
 
 const BulkWriter = function BulkWriter(client, options) {
   this.client = client;
@@ -14,20 +14,22 @@ const BulkWriter = function BulkWriter(client, options) {
   this.bulk = []; // bulk to be flushed
   this.running = false;
   this.timer = false;
-  debug('created', this);
+  debug("created", this);
 };
 
 BulkWriter.prototype.start = function start() {
   this.checkEsConnection();
-  debug('started');
+  debug("started");
 };
 
 BulkWriter.prototype.stop = function stop() {
   this.running = false;
-  if (!this.timer) { return; }
+  if (!this.timer) {
+    return;
+  }
   clearTimeout(this.timer);
   this.timer = null;
-  debug('stopped');
+  debug("stopped");
 };
 
 BulkWriter.prototype.schedule = function schedule() {
@@ -38,14 +40,17 @@ BulkWriter.prototype.schedule = function schedule() {
 };
 
 BulkWriter.prototype.tick = function tick() {
-  debug('tick');
+  debug("tick");
   const thiz = this;
-  if (!this.running) { return; }
+  if (!this.running) {
+    return;
+  }
   this.flush()
     .then(() => {
       // Emulate finally with last .then()
     })
-    .then(() => { // finally()
+    .then(() => {
+      // finally()
       thiz.schedule();
     });
 };
@@ -54,8 +59,8 @@ BulkWriter.prototype.flush = function flush() {
   // write bulk to elasticsearch
   const thiz = this;
   if (this.bulk.length === 0) {
-    debug('nothing to flush');
-    return new Promise((resolve) => {
+    debug("nothing to flush");
+    return new Promise(resolve => {
       return resolve();
     });
   }
@@ -63,48 +68,65 @@ BulkWriter.prototype.flush = function flush() {
   this.bulk = [];
   const body = [];
   bulk.forEach(({ index, type, doc }) => {
-    body.push({ index: { _index: index, _type: type, pipeline: this.pipeline } }, doc);
+    body.push(
+      { index: { _index: index, _type: type, pipeline: this.pipeline } },
+      doc
+    );
   });
-  debug('going to write', body);
-  return this.client.bulk({
-    body,
-    waitForActiveShards: this.waitForActiveShards,
-    timeout: this.interval + 'ms',
-    type: this.type
-  }).then((res) => {
-    if (res.errors && res.items) {
-      res.items.forEach((item) => {
-        if (item.index && item.index.error) {
-          // eslint-disable-next-line no-console
-          console.error('Elasticsearch index error', item.index);
-        }
-      });
-    }
-    bulk.forEach(({ callback }) => callback());
-  }).catch((e) => { // prevent [DEP0018] DeprecationWarning
-    // rollback this.bulk array
-    const lenSum = thiz.bulk.length + bulk.length;
-    if (thiz.options.bufferLimit && (lenSum >= thiz.options.bufferLimit)) {
-      thiz.bulk = bulk.concat(thiz.bulk.slice(0, thiz.options.bufferLimit - bulk.length));
-    } else {
-      thiz.bulk = bulk.concat(thiz.bulk);
-    }
-    // eslint-disable-next-line no-console
-    console.error(e);
-    debug('error occurred', e);
-    this.stop();
-    this.checkEsConnection();
-  });
+  debug("going to write", body);
+  return this.client
+    .bulk({
+      body,
+      waitForActiveShards: this.waitForActiveShards,
+      timeout: this.interval + "ms",
+      type: this.type
+    })
+    .then(res => {
+      if (res.errors && res.items) {
+        res.items.forEach(item => {
+          if (item.index && item.index.error) {
+            // eslint-disable-next-line no-console
+            console.error("Elasticsearch index error", item.index);
+          }
+        });
+      }
+      bulk.forEach(({ callback }) => callback());
+    })
+    .catch(e => {
+      // prevent [DEP0018] DeprecationWarning
+      // rollback this.bulk array
+      const lenSum = thiz.bulk.length + bulk.length;
+      if (thiz.options.bufferLimit && lenSum >= thiz.options.bufferLimit) {
+        thiz.bulk = bulk.concat(
+          thiz.bulk.slice(0, thiz.options.bufferLimit - bulk.length)
+        );
+      } else {
+        thiz.bulk = bulk.concat(thiz.bulk);
+      }
+      // eslint-disable-next-line no-console
+      console.error(e);
+      debug("error occurred", e);
+      this.stop();
+      this.checkEsConnection();
+    });
 };
 
 BulkWriter.prototype.append = function append(index, type, doc, callback) {
-  if (this.options.bufferLimit && (this.bulk.length >= this.options.bufferLimit)) {
-    debug('message discarded cause buffer limit exceeded');
+  if (
+    this.options.bufferLimit &&
+    this.bulk.length >= this.options.bufferLimit
+  ) {
+    debug("message discarded cause buffer limit exceeded");
     // @todo: i guess we can use callback to notify caller
     return;
   }
+
+  console.log("Pushing log message ....");
   this.bulk.push({
-    index, type, doc, callback
+    index,
+    type,
+    doc,
+    callback
   });
 };
 
@@ -121,10 +143,10 @@ BulkWriter.prototype.checkEsConnection = function checkEsConnection() {
     randomize: false
   });
   return new Promise((fulfill, reject) => {
-    operation.attempt((currentAttempt) => {
-      debug('checking for connection');
+    operation.attempt(currentAttempt => {
+      debug("checking for connection");
       thiz.client.ping().then(
-        (res) => {
+        res => {
           thiz.esConnection = true;
           // Ensure mapping template is existing if desired
           if (thiz.options.ensureMappingTemplate) {
@@ -132,50 +154,63 @@ BulkWriter.prototype.checkEsConnection = function checkEsConnection() {
           } else {
             fulfill(true);
           }
-          debug('starting bulk writer');
+          debug("starting bulk writer");
           thiz.running = true;
           thiz.tick();
         },
-        (err) => {
-          debug('checking for connection');
+        err => {
+          debug("checking for connection");
           if (operation.retry(err)) {
             return;
           }
           // thiz.esConnection = false;
-          reject(new Error('Cannot connect to ES'));
+          reject(new Error("Cannot connect to ES"));
         }
       );
     });
   });
 };
 
-BulkWriter.prototype.ensureMappingTemplate = function ensureMappingTemplate(fulfill, reject) {
+BulkWriter.prototype.ensureMappingTemplate = function ensureMappingTemplate(
+  fulfill,
+  reject
+) {
   const thiz = this;
   // eslint-disable-next-line prefer-destructuring
   let mappingTemplate = thiz.options.mappingTemplate;
-  if (mappingTemplate === null || typeof mappingTemplate === 'undefined') {
-    const rawdata = fs.readFileSync(path.join(__dirname, 'index-template-mapping.json'));
+  if (mappingTemplate === null || typeof mappingTemplate === "undefined") {
+    const rawdata = fs.readFileSync(
+      path.join(__dirname, "index-template-mapping.json")
+    );
     mappingTemplate = JSON.parse(rawdata);
   }
   const tmplCheckMessage = {
-    name: 'template_' + (typeof thiz.options.indexPrefix === 'function' ? thiz.options.indexPrefix() : thiz.options.indexPrefix)
+    name:
+      "template_" +
+      (typeof thiz.options.indexPrefix === "function"
+        ? thiz.options.indexPrefix()
+        : thiz.options.indexPrefix)
   };
   thiz.client.indices.getTemplate(tmplCheckMessage).then(
-    (res) => {
+    res => {
       fulfill(res);
     },
-    (res) => {
+    res => {
       if (res.status && res.status === 404) {
         const tmplMessage = {
-          name: 'template_' + (typeof thiz.options.indexPrefix === 'function' ? thiz.options.indexPrefix() : thiz.options.indexPrefix),
+          name:
+            "template_" +
+            (typeof thiz.options.indexPrefix === "function"
+              ? thiz.options.indexPrefix()
+              : thiz.options.indexPrefix),
           create: true,
           body: mappingTemplate
         };
         thiz.client.indices.putTemplate(tmplMessage).then(
-          (res1) => {
+          res1 => {
             fulfill(res1);
           },
-          (err1) => {
+          err1 => {
             reject(err1);
           }
         );
